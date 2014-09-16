@@ -1,0 +1,110 @@
+#!/usr/bin/php
+<?php
+
+class HaProxy {
+
+	private $_cfg;
+	private $_cfgPath;
+
+   public function __construct($_cfgPath = "/etc/haproxy/haproxy.cfg") {
+	$this->_cfgPath = $_cfgPath;
+
+	if (!file_exists($this->_cfgPath))
+	   die("Cannot file file {$this->_cfgPath}.");
+
+	$this->_cfg = file_get_contents($this->_cfgPath);
+   }
+  
+   public function viewCfg() {
+	echo $this->_cfg;
+   }
+
+   public function insertCfg ($client, $serverIp) {
+	$http_config = <<<EOF
+#open_http_{$client}#
+acl http_{$client}       hdr_end(host) -i {$client}
+use_backend bk_http_{$client}    if http_{$client}
+
+backend bk_http_{$client}
+        mode http
+        server server1 {$serverIp}
+#close_http_{$client}#
+EOF;
+
+	$ssl_config = <<<EOF
+#open_ssl_{$client}#
+acl ssl_{$client} req_ssl_sni -i {$client}
+use_backend bk_ssl_{$client} if ssl_{$client}
+
+backend bk_ssl_{$client}
+        server server1 {$serverIp}
+#close_ssl_{$client}#
+EOF;
+
+	$this->insertHelperConfig('#HTTP_INSERT#', $http_config);
+	$this->insertHelperConfig('#SSL_INSERT#', $ssl_config);
+   }
+
+   public function insertHelperConfig ($keyword, $body) {
+      $this->_cfg = substr_replace($this->_cfg, PHP_EOL . $body, strpos($this->_cfg, $keyword) + strlen($keyword), 0); 
+   }
+
+   public function removeCfg ($client) {
+      $this->removeHelperConfig("#open_http_{$client}#", "#close_http_{$client}#");
+      $this->removeHelperConfig("#open_ssl_{$client}#", "#close_ssl_{$client}#");     
+   }
+
+   public function removeHelperConfig ($beginning, $end) {
+      $beginningPos = strpos($this->_cfg, $beginning);
+      $endPos = strpos($this->_cfg, $end);
+
+      if ($beginningPos === false || $endPos === false) 
+        return;
+
+      $textToDelete = substr($this->_cfg, $beginningPos, ($endPos + strlen($end)) - $beginningPos);
+      $this->_cfg = str_replace($textToDelete, '', $this->_cfg);
+   }      
+
+   public function saveCfg($cfgPath = null) {
+
+	if (empty($cfgPath))
+	   $cfgPath = $this->_cfgPath;
+
+	file_put_contents($cfgPath, $this->_cfg);
+   }
+
+   public function reloadCfg() {
+	echo shell_exec("service haproxy reload");
+   }
+}
+
+$proxy = new HaProxy();
+
+$process = @strtolower($argv[1]);
+$domain = @strtolower($argv[2]);
+
+switch ($process) {
+   case 'add';
+   case 'ins';
+   case 'insert':
+	$ip = $argv[3];
+	$proxy->insertCfg($domain, $ip);
+	$proxy->saveCfg();
+	$proxy->reloadCfg();
+    break;
+   case 'del':
+   case 'delete':
+   case 'remove':
+	$proxy->removeCfg($domain);
+	$proxy->saveCfg();
+	$proxy->reloadCfg();
+    break;
+   case 'view':
+   case 'show':
+	$proxy->viewCfg();
+    break;
+   default: 
+	echo "Usage: {$argv[0]} <insert | delete> <domain> [ipaddress]\n";
+    break;
+}
+
