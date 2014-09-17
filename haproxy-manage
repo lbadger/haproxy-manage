@@ -3,46 +3,57 @@
 
 class HaProxy {
 
-	private $_cfg;
-	private $_cfgPath;
+    private $_cfg;
+    private $_cfgPath;
 
    public function __construct($_cfgPath = "/etc/haproxy/haproxy.cfg") {
-	$this->_cfgPath = $_cfgPath;
+    $this->_cfgPath = $_cfgPath;
 
-	if (!file_exists($this->_cfgPath))
-	   die("Cannot file file {$this->_cfgPath}.");
+    if (!file_exists($this->_cfgPath))
+       die("Cannot file file {$this->_cfgPath}.");
 
-	$this->_cfg = file_get_contents($this->_cfgPath);
+    $this->_cfg = file_get_contents($this->_cfgPath);
    }
   
    public function viewCfg() {
-	echo $this->_cfg;
+    echo $this->_cfg;
    }
 
    public function insertCfg ($client, $serverIp) {
-	$http_config = <<<EOF
+    $http_config = <<<EOF
 #open_http_{$client}#
 acl http_{$client}       hdr_end(host) -i {$client}
 use_backend bk_http_{$client}    if http_{$client}
-
-backend bk_http_{$client}
-        mode http
-        server server1 {$serverIp}
 #close_http_{$client}#
 EOF;
 
-	$ssl_config = <<<EOF
+    $http_config_backend = <<<EOF
+#open_http_backend_{$client}#
+backend bk_http_{$client}
+        mode http
+        server server1 {$serverIp}
+#close_http_backend_{$client}#
+EOF;
+
+    $ssl_config = <<<EOF
 #open_ssl_{$client}#
 acl ssl_{$client} req_ssl_sni -i {$client}
 use_backend bk_ssl_{$client} if ssl_{$client}
-
-backend bk_ssl_{$client}
-        server server1 {$serverIp}
 #close_ssl_{$client}#
 EOF;
 
-	$this->insertHelperConfig('#HTTP_INSERT#', $http_config);
-	$this->insertHelperConfig('#SSL_INSERT#', $ssl_config);
+    $ssl_config_backend = <<<EOF
+#open_ssl_backend_{$client}#
+backend bk_ssl_{$client}
+        server server1 {$serverIp}
+#close_ssl_backend_{$client}#
+EOF;
+
+
+    $this->insertHelperConfig('#HTTP_INSERT#', $http_config);
+    $this->insertHelperConfig('#HTTP_INSERT_BACKEND#', $http_config_backend);
+    $this->insertHelperConfig('#SSL_INSERT#', $ssl_config);
+    $this->insertHelperConfig('#SSL_INSERT_BACKEND#', $ssl_config_backend);
    }
 
    public function insertHelperConfig ($keyword, $body) {
@@ -52,6 +63,8 @@ EOF;
    public function removeCfg ($client) {
       $this->removeHelperConfig("#open_http_{$client}#", "#close_http_{$client}#");
       $this->removeHelperConfig("#open_ssl_{$client}#", "#close_ssl_{$client}#");     
+      $this->removeHelperConfig("#open_http_backend_{$client}#", "#close_http_backend_{$client}#");
+      $this->removeHelperConfig("#open_ssl_backend_{$client}#", "#close_ssl_backend_{$client}#");     
    }
 
    public function removeHelperConfig ($beginning, $end) {
@@ -67,14 +80,14 @@ EOF;
 
    public function saveCfg($cfgPath = null) {
 
-	if (empty($cfgPath))
-	   $cfgPath = $this->_cfgPath;
+    if (empty($cfgPath))
+       $cfgPath = $this->_cfgPath;
 
-	file_put_contents($cfgPath, $this->_cfg);
+    file_put_contents($cfgPath, $this->_cfg);
    }
 
    public function reloadCfg() {
-	echo shell_exec("service haproxy reload");
+    echo shell_exec("service haproxy reload");
    }
 }
 
@@ -87,24 +100,24 @@ switch ($process) {
    case 'add';
    case 'ins';
    case 'insert':
-	$ip = $argv[3];
-	$proxy->insertCfg($domain, $ip);
-	$proxy->saveCfg();
-	$proxy->reloadCfg();
+    $ip = $argv[3];
+    $proxy->insertCfg($domain, $ip);
+    $proxy->saveCfg();
+    $proxy->reloadCfg();
     break;
    case 'del':
    case 'delete':
    case 'remove':
-	$proxy->removeCfg($domain);
-	$proxy->saveCfg();
-	$proxy->reloadCfg();
+    $proxy->removeCfg($domain);
+    $proxy->saveCfg();
+    $proxy->reloadCfg();
     break;
    case 'view':
    case 'show':
-	$proxy->viewCfg();
+    $proxy->viewCfg();
     break;
    default: 
-	echo "Usage: {$argv[0]} <insert | delete> <domain> [ipaddress]\n";
+    echo "Usage: {$argv[0]} <insert | delete> <domain> [ipaddress]\n";
     break;
 }
 
