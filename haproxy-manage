@@ -87,7 +87,9 @@ EOF;
    }
 
    public function reloadCfg() {
-    echo shell_exec("service haproxy reload");
+    $response = shell_exec("service haproxy reload; echo $?");
+    //echo $response;
+    echo (substr($response, -1, 1));
    }
 }
 
@@ -120,4 +122,3 @@ switch ($process) {
     echo "Usage: {$argv[0]} <insert | delete> <domain> [ipaddress]\n";
     break;
 }
-
