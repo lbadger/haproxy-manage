@@ -37,7 +37,7 @@ EOF;
 
     $ssl_config = <<<EOF
 #open_ssl_{$client}#
-acl ssl_{$client} req_ssl_sni -i {$client}
+acl ssl_{$client} req_ssl_sni -i *.{$client}
 use_backend bk_ssl_{$client} if ssl_{$client}
 #close_ssl_{$client}#
 EOF;
@@ -103,6 +103,7 @@ switch ($process) {
    case 'ins';
    case 'insert':
     $ip = $argv[3];
+    $proxy->removeCfg($domain);
     $proxy->insertCfg($domain, $ip);
     $proxy->saveCfg();
     $proxy->reloadCfg();
@@ -122,3 +123,4 @@ switch ($process) {
     echo "Usage: {$argv[0]} <insert | delete> <domain> [ipaddress]\n";
     break;
 }
+
