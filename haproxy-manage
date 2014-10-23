@@ -37,7 +37,7 @@ EOF;
 
     $ssl_config = <<<EOF
 #open_ssl_{$client}#
-acl ssl_{$client} req_ssl_sni -i *.{$client}
+acl ssl_{$client} req.ssl_sni -i {$client}
 use_backend bk_ssl_{$client} if ssl_{$client}
 #close_ssl_{$client}#
 EOF;
